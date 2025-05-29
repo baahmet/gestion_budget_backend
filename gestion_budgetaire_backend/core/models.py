@@ -176,9 +176,16 @@ class LigneBudgetaire(models.Model):
     budget = models.ForeignKey(Budget, on_delete=models.CASCADE, related_name='lignes')
     article = models.CharField(max_length=100, verbose_name="Article ou poste budgétaire")
     montant_alloue = models.FloatField(verbose_name="Montant alloué à cette ligne")
+    montant_restant = models.FloatField(verbose_name="Montant restant de cette ligne", default=0)
 
     def __str__(self):
         return f"{self.article} - {self.montant_alloue} F"
+
+    def save(self, *args, **kwargs):
+        # À la création, initialiser montant_restant = montant_alloue
+        if not self.pk:
+            self.montant_restant = self.montant_alloue
+        super().save(*args, **kwargs)
 
 
 

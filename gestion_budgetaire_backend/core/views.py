@@ -89,9 +89,9 @@ class DepenseViewSet(ModelViewSet):
         if montant > budget.montant_disponible:
             raise serializers.ValidationError("Le montant de la dépense dépasse le montant disponible du budget.")
 
-        if montant > ligne.montant_alloue:
+        if montant > ligne.montant_restant:
             raise serializers.ValidationError(
-                "Le montant de la dépense dépasse le montant alloué à la ligne budgétaire.")
+                "Le montant de la dépense dépasse le montant restant à la ligne budgétaire.")
 
         # Si tout est bon, on enregistre
         serializer.save()
@@ -138,11 +138,12 @@ class CommandeViewSet(ModelViewSet):
         total = serializer.validated_data['quantite'] * serializer.validated_data['prix_unitaire']
 
         if total > depense.montant:
-            raise serializers.ValidationError("Le montant de la commande dépasse le montant  du depense lié.")
+            raise serializers.ValidationError("Le montant de la commande dépasse le montant  du depense lié."
+                                              )
 
-        if total > ligne.montant_alloue:
+        if total > ligne.montant_restant:
             raise serializers.ValidationError(
-                "Le montant de la commande dépasse le montant alloué à la ligne budgétaire.")
+                "Le montant de la commande dépasse le montant restant à la ligne budgétaire.")
         serializer.save(total=total)
 
 
@@ -270,6 +271,18 @@ class ValidationDepenseView(APIView):
 
         commentaire = request.data.get("commentaire", "")
 
+        # Mettre à jour le montant restant seulement si la dépense est validée
+        if action == 'validee':
+            ligne = depense.ligne_budgetaire
+            if depense.montant > ligne.montant_restant:
+                return Response(
+                    {"error": "Le montant de la dépense dépasse le montant restant de la ligne budgétaire."},
+                    status=400
+                )
+
+            ligne.montant_restant -= depense.montant
+            ligne.save()
+
         # Validation ou rejet
         depense.statut_validation = action
         depense.valide_par = request.user
@@ -379,7 +392,7 @@ class ValidationCommandeView(APIView):
         action = request.data.get('statut')
         if action == 'validee':
             verifier_commande_autorisee(ligne, montant)
-            if montant > ligne.montant_alloue:
+            if montant > ligne.montant_restant:
                 return Response({"error": "Dépassement de la ligne budgétaire."}, status=400)
             ligne.montant_alloue -= montant
             ligne.save()
